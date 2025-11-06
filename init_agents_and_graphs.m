@@ -69,12 +69,15 @@ for c = 1:Nc
     if nc <= 1
         G_country{c} = graph();
         continue;
+
     end
 
     p = params.p_edge;  % edge probability
     A = rand(nc) < p;
+
     A = triu(A,1);      % upper triangle only
     A = A + A';         % make symmetric (undirected)
-    G_country{c} = graph(A, ids_c);  % node names are agent IDs
+    names = string(ids_c);
+    G_country{c} = graph(A, names);  % node names are agent IDs
 end
 end
