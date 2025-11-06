@@ -44,6 +44,14 @@ target_reduction = 50; % percent
 disp('Running baseline (no travel ban)...');
 [peak_baseline_mean,peak_baseline_std, baseline_ts] = run_experiments_agent(params, agents_template, country_agent_ids, G_country, Inf);
 
+% Plot baselne ts
+% Plot baseline time series
+figure('Name','Baseline Time Series');
+plot(baseline_ts.days, baseline_ts.I_comb, 'LineWidth', 2);
+xlabel('Days'); ylabel('Combined Infected');
+title('Baseline Infection Over Time');
+grid on;
+
 fprintf('Baseline mean combined peak infected (over %d runs) = %.3f (std %.3f)\n', params.n_runs, peak_baseline_mean, peak_baseline_std);
 
 % Sweep ban times
