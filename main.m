@@ -41,7 +41,6 @@ target_reduction = 50; % percent
 % agents_template is a struct array that can be cloned for each run
 
 % Baseline (no ban)
-disp('Running baseline (no travel ban)...');
 [peak_baseline_mean,peak_baseline_std, baseline_ts] = run_experiments_agent(params, agents_template, country_agent_ids, G_country, Inf);
 
 % Plot baselne ts
