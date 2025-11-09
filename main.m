@@ -3,8 +3,8 @@ rng(1);
 
 % Parameters
 params.N_countries = 10;
-params.N_total = 100;          % total agents
-params.beta_per_edge = 0.15;   % transmission probability per contact per day
+params.N_total = 1000;          % total agents
+params.beta_per_edge = 0.7;   % transmission probability per contact per day
 params.gamma = 0.10;    
        % recovery prob per day
 params.p_edge = 0.05;          % prob edge exists in Erdos-Renyi contact graph within country
