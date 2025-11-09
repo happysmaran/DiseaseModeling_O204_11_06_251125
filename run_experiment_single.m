@@ -45,15 +45,89 @@ for c = 1:Nc
     end
 end
 
+% % --- DIAGNOSTIC BLOCK (paste after neighbors built) ---
+% fprintf('DIAG: checking neighbors and agent locs...\n');
+% 
+% % basic agent / country checks
+% Nc = params.N_countries;
+% N_total = numel(agents);
+% locs = [agents.loc];
+% if any(locs < 1) || any(locs > Nc) || any(mod(locs,1)~=0)
+%     warning('DIAG: some agents have invalid loc values (outside 1..Nc or non-integer)');
+% end
+% 
+% % neighbor validity checks
+% invalid_count = 0;
+% nan_count = 0;
+% out_of_range = 0;
+% deg = zeros(N_total,1);
+% for a = 1:N_total
+%     nb = neighbors{a};
+%     deg(a) = numel(nb);
+%     if isempty(nb), continue; end
+%     if any(isnan(nb))
+%         nan_count = nan_count + 1;
+%     end
+%     if any(nb < 1) || any(nb > N_total) || any(mod(nb,1)~=0)
+%         out_of_range = out_of_range + 1;
+%     end
+%     % also check that neighbor ids are unique and integers
+%     if any(diff(sort(nb))==0)
+%         % duplicate neighbor ids (not fatal but suspicious)
+%     end
+% end
+% 
+% fprintf('DIAG: N_total=%d, Nc=%d\n', N_total, Nc);
+% fprintf('DIAG: degree mean=%.3f median=%.3f max=%d zero_deg=%d\n', mean(deg), median(deg), max(deg), sum(deg==0));
+% fprintf('DIAG: neighbor lists with NaNs = %d, out_of_range lists = %d\n', nan_count, out_of_range);
+% 
+% % show examples for first few infected (or first few agents)
+% example_ids = unique([params.I0_idx, find([agents.state]==1)]);
+% example_ids = example_ids(1:min(10,length(example_ids)));
+% for id = example_ids
+%     if id > N_total, continue; end
+%     nb = neighbors{id};
+%     if isempty(nb)
+%         fprintf('DIAG: agent %d (state=%d, loc=%d) has ZERO neighbors\n', id, agents(id).state, agents(id).loc);
+%     else
+%         % show first few neighbor ids and their locs and states
+%         nshow = min(8,numel(nb));
+%         nb_small = nb(1:nshow);
+%         nb_locs = [agents(nb_small).loc];
+%         nb_states = [agents(nb_small).state];
+%         fprintf('DIAG: agent %d (loc=%d) neighbors [%s] locs [%s] states [%s]\n', ...
+%             id, agents(id).loc, num2str(nb_small), num2str(nb_locs), num2str(nb_states));
+%     end
+% end
+% 
+% % Check if neighbor ids are local (i.e., only span 1..max_local)
+% all_node_ids_in_graphs = [];
+% for c=1:Nc
+%     G = G_country{c};
+%     if numnodes(G)>0
+%         node_names = G.Nodes.Name;
+%         % try converting to numbers
+%         nums = str2double(node_names);
+%         all_node_ids_in_graphs = [all_node_ids_in_graphs; nums(:)];
+%     end
+% end
+% fprintf('DIAG: node id range seen in graphs: min=%g max=%g (NaNs=%d)\n', min(all_node_ids_in_graphs), max(all_node_ids_in_graphs), sum(isnan(all_node_ids_in_graphs)));
+% % --- END DIAGNOSTIC BLOCK ---
+
+
+
 % main time loop
 for t = 1:nsteps
     % record per-country counts (based on current agents)
+    % record per-country counts (based on current agents' loc)
+    locs = [agents.loc];                 % 1 x N_total vector of current locations
     for c = 1:Nc
-        ids = country_agent_ids{c};
+        ids = find(locs == c);           % current agent ids in country c
         S_hist(t,c) = sum([agents(ids).state] == 0);
         I_hist(t,c) = sum([agents(ids).state] == 1);
         R_hist(t,c) = sum([agents(ids).state] == 2);
     end
+
 
     if t == nsteps
         break;
@@ -150,6 +224,10 @@ for t = 1:nsteps
     % END synchronous update
 end
 
+infected_countries = find(max(I_hist) > 0);
+%fprintf('Infected countries: %d of %d\n', numel(infected_countries), Nc);
+%disp(infected_countries);
+
 I_comb = sum(I_hist,2);
 peak_combined = max(I_comb);
 
@@ -158,4 +236,8 @@ ts.S = S_hist;
 ts.I = I_hist;
 ts.R = R_hist;
 ts.I_comb = I_comb;
+
+%total_infected = sum(ts.R(end,:) + ts.I(end,:));
+%fprintf('Total ever infected = %d of %d\n', total_infected, N_total);
+
 end

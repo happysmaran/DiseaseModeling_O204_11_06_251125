@@ -1,0 +1,201 @@
+function [peak_combined, ts] = run_experiment_single(params, agents_template, country_agent_ids, G_country, ban_time, rng_seed)
+% run_experiment_single Run a single stochastic agent-based simulation.
+% rng_seed can be 'shuffle' or numeric.
+
+% ----------------- RNG INIT -----------------
+if isnumeric(rng_seed)
+    rng(rng_seed);
+else
+    rng('shuffle');
+end
+
+% ----------------- CLONE AGENTS -----------------
+agents = agents_template; % struct array copy by value
+Nc = params.N_countries;
+t_max = params.t_max;
+dt = params.dt;
+nsteps = floor(t_max/dt) + 1;
+days = 0:dt:t_max;
+
+% ----------------- TRAVEL MATRIX -----------------
+M_pre = params.M;
+
+% ----------------- BOOKKEEPING -----------------
+I_hist = zeros(nsteps, Nc);
+S_hist = zeros(nsteps, Nc);
+R_hist = zeros(nsteps, Nc);
+
+N_total = numel(agents);
+
+% ----------------- NEIGHBORS PRECOMPUTE -----------------
+neighbors = cell(N_total,1);
+for c = 1:Nc
+    G = G_country{c};
+    if isempty(G) || numnodes(G)==0
+        continue;
+    end
+    nodes = G.Nodes.Name; 
+    for ni = 1:numel(nodes)
+        aid = str2double(nodes{ni});
+        if isnan(aid) || aid < 1 || aid > N_total || mod(aid,1)~=0
+            warning('Skipping invalid node id %s in graph for country %d', nodes{ni}, c);
+            continue;
+        end
+        nb = neighbors_in_graph(G, aid);
+        % filter out invalid neighbor ids
+        nb = nb(~isnan(nb) & nb >= 1 & nb <= N_total & mod(nb,1)==0);
+        nb = unique(nb); % remove duplicates
+        neighbors{aid} = nb;
+    end
+end
+
+% ----------------- DIAGNOSTICS -----------------
+fprintf('DIAG: checking neighbors and agent locs...\n');
+locs = [agents.loc];
+if any(locs < 1) || any(locs > Nc) || any(mod(locs,1)~=0)
+    warning('DIAG: some agents have invalid loc values (outside 1..Nc or non-integer)');
+end
+
+deg = zeros(N_total,1);
+nan_count = 0;
+out_of_range = 0;
+for a = 1:N_total
+    nb = neighbors{a};
+    deg(a) = numel(nb);
+    if any(isnan(nb)), nan_count = nan_count + 1; end
+    if any(nb < 1) || any(nb > N_total) || any(mod(nb,1)~=0), out_of_range = out_of_range + 1; end
+end
+
+fprintf('DIAG: N_total=%d, Nc=%d\n', N_total, Nc);
+fprintf('DIAG: degree mean=%.3f median=%.3f max=%d zero_deg=%d\n', mean(deg), median(deg), max(deg), sum(deg==0));
+fprintf('DIAG: neighbor lists with NaNs = %d, out_of_range lists = %d\n', nan_count, out_of_range);
+
+example_ids = unique([params.I0_idx, find([agents.state]==1)]);
+example_ids = example_ids(1:min(10,length(example_ids)));
+for id = example_ids
+    if id > N_total, continue; end
+    nb = neighbors{id};
+    if isempty(nb)
+        fprintf('DIAG: agent %d (state=%d, loc=%d) has ZERO neighbors\n', agents(id).state, agents(id).loc);
+    else
+        nshow = min(8,numel(nb));
+        nb_small = nb(1:nshow);
+        nb_locs = [agents(nb_small).loc];
+        nb_states = [agents(nb_small).state];
+        %fprintf('DIAG: agent %d (loc=%d) neighbors [%s] locs [%s] states [%s]\n', ...
+            id, agents(id).loc, num2str(nb_small), num2str(nb_locs), num2str(nb_states));
+    end
+end
+
+all_node_ids = [];
+for c=1:Nc
+    G = G_country{c};
+    if numnodes(G)>0
+        nums = str2double(G.Nodes.Name);
+        all_node_ids = [all_node_ids; nums(:)];
+    end
+end
+%fprintf('DIAG: node id range seen in graphs: min=%g max=%g (NaNs=%d)\n', min(all_node_ids), max(all_node_ids), sum(isnan(all_node_ids)));
+
+% ----------------- MAIN SIMULATION LOOP -----------------
+for t = 1:nsteps
+    locs = [agents.loc];  
+    for c = 1:Nc
+        ids = find(locs == c);
+        S_hist(t,c) = sum([agents(ids).state] == 0);
+        I_hist(t,c) = sum([agents(ids).state] == 1);
+        R_hist(t,c) = sum([agents(ids).state] == 2);
+    end
+
+    if t == nsteps, break; end
+    current_day = days(t);
+
+    % Travel matrix depending on ban
+    if current_day >= ban_time
+        M = zeros(Nc);
+    else
+        M = M_pre;
+    end
+
+    % Agent travel
+    for a = 1:N_total
+        cur_loc = agents(a).loc;
+        row = M(cur_loc,:);
+        out_prob = sum(row);
+        if out_prob > 0 && rand() < out_prob
+            probs = row; probs(cur_loc) = 0;
+            if sum(probs)>0
+                probs = probs / sum(probs);
+                agents(a).loc = randsample(1:Nc,1,true,probs);
+            end
+        end
+    end
+
+    % ----------------- INFECTION & RECOVERY -----------------
+    old_state = [agents.state];
+    will_be_infected = false(N_total,1);
+    will_recover = false(N_total,1);
+
+    p_trans = params.beta_per_edge;
+
+    % Infection step
+    for a = 1:N_total
+        if old_state(a) ~= 1, continue; end
+        nb = neighbors{a};
+        if isempty(nb), continue; end
+        colocated_nb = nb([agents(nb).loc] == agents(a).loc);
+        for nbid = colocated_nb
+            if old_state(nbid)==0 && rand() < p_trans
+                will_be_infected(nbid) = true;
+            end
+        end
+    end
+
+    % Recovery step
+    for a = 1:N_total
+        if old_state(a)==1 && rand() < params.gamma
+            will_recover(a) = true;
+        end
+    end
+
+    % Apply recoveries first
+    for a = 1:N_total
+        if will_recover(a)
+            agents(a).state = 2;
+            agents(a).days_infected = 0;
+        end
+    end
+
+    % Apply new infections
+    for a = 1:N_total
+        if will_be_infected(a) && agents(a).state==0
+            agents(a).state = 1;
+            agents(a).days_infected = 0;
+        end
+    end
+
+    % Increment days_infected
+    for a = 1:N_total
+        if agents(a).state==1
+            agents(a).days_infected = agents(a).days_infected + dt;
+        end
+    end
+end
+
+infected_countries = find(max(I_hist)>0);
+fprintf('Infected countries: %d of %d\n', numel(infected_countries), Nc);
+disp(infected_countries);
+
+I_comb = sum(I_hist,2);
+peak_combined = max(I_comb);
+
+ts.days = days;
+ts.S = S_hist;
+ts.I = I_hist;
+ts.R = R_hist;
+ts.I_comb = I_comb;
+
+total_infected = sum(ts.R(end,:) + ts.I(end,:));
+fprintf('Total ever infected = %d of %d\n', total_infected, N_total);
+
+end

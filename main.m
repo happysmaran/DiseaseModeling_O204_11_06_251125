@@ -2,18 +2,17 @@ clearvars; close all; clc;
 rng(1);
 
 % Parameters
-params.N_countries = 10;
-params.N_total = 1000;          % total agents
-params.beta_per_edge = 0.7;   % transmission probability per contact per day
-params.gamma = 0.10;    
-       % recovery prob per day
-params.p_edge = 0.05;          % prob edge exists in Erdos-Renyi contact graph within country
-params.avg_out_travel = 0.02;  % fraction of persons leaving their country per day (row-sum of M)
-params.t_max = 160;            % days
+params.N_countries = 5;        % total countries (or 'pods')
+params.N_total = 100;          % total agents
+params.beta_per_edge = 0.7;    % transmission probability per contact per day
+params.gamma = 0.05;           % recovery prob per day
+params.p_edge = 0.7;           % prob edge exists in Erdos-Renyi contact graph within country
+params.avg_out_travel = 0.7;   % fraction of persons leaving their country per day (row-sum of M)
+params.t_max = 60;             % days
 params.dt = 1;                 % day step (1)
 params.I0_idx = 1;             % initial infected agent id index (or array)
 params.n_runs = 20;            % stochastic repeats per ban time for averaging
-params.seed_mode = 'auto';     % 'auto' or 'fixed' (if fixed will use run index to seed)
+params.seed_mode = 'fixed';    % 'auto' or 'fixed' (if fixed will use run index to seed)
 params.verbose = true;
 
 % Distribute populations: equal by default
@@ -90,7 +89,6 @@ yline(target_reduction, ':r', sprintf('Target = %.0f%%', target_reduction));
 title('Mean peak reduction vs travel-ban day');
 grid on;
 
-    
 if ~isempty(idx)
     best_bt = ban_times(idx);
     % simulate example trajectories for baseline and best ban (single representative run)
