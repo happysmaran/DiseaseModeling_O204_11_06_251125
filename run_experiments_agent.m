@@ -1,7 +1,6 @@
 function [mu_peak, sigma_peak, all_ts, avg_ts] = run_experiments_agent(params, agents_template, country_agent_ids, G_country, ban_time)
 % run_experiments_agent Run n_runs stochastic simulations and return stats.
-% Returns mean and std of combined peak infecteds across runs, and optionally
-% sample time series (first run) for inspection.
+% Returns mean and std of combined peak infecteds across runs=
 
 n_runs = params.n_runs;
 peaks = zeros(n_runs,1);
@@ -21,7 +20,7 @@ end
 
 mu_peak = mean(peaks);
 sigma_peak = std(peaks);
-% return aggregated ts for first run for convenience
+
 
 avg_days = zeros(length(all_ts{1}.I), 1);
 
@@ -35,5 +34,4 @@ avg_days = avg_days ./ n_runs;
 
 
 avg_ts = avg_days;
-all_ts = all_ts{1};
 end
