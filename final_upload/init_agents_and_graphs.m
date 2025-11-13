@@ -78,6 +78,19 @@ for c = 1:Nc
     A = triu(A,1);      % upper triangle only
     A = A + A';         % make symmetric (undirected)
     names = string(ids_c);
+
+
+    % Assert that there are the right number of people
+    
+    assert(length(A) == sum(params.population) / Nc, 'Not the right number of people');
     G_country{c} = graph(A, names);  % node names are agent IDs
 end
+
+% Assert statements: make sure agent ids are as exoected
+assert(all(cellfun(@(x) all(ismember(x, 1:N_total)), country_agent_ids)), 'Agent IDs must be within valid range.');
+
+% Assert that there are the right number of agents
+assert(length(G_country) == Nc, 'Not the right number of companies');
+
+
 end
